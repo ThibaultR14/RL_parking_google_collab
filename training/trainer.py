@@ -15,7 +15,7 @@ class Trainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Correction Gymnasium : render_mode="rgb_array"
+        # ===== ENV =====
         self.env = gym.make(
             config.ENV_ID,
             max_episode_steps=config.MAX_STEPS_PER_EPISODE,
@@ -27,14 +27,20 @@ class Trainer:
 
         self.agent = DQNAgent(obs_dim, n_actions, config, self.device)
 
+        # ===== SAVE DIRECTORY ON GOOGLE DRIVE =====
+        base_dir = "/content/drive/MyDrive/RL_parking/runs"
+
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         self.run_dir = os.path.join(
-            "runs",
+            base_dir,
             "DQN",
             skill_set_name,
             timestamp
         )
+
         os.makedirs(self.run_dir, exist_ok=True)
+
+        print(f"\nLogs will be saved in:\n{self.run_dir}\n")
 
         self.writer = SummaryWriter(self.run_dir)
 
@@ -54,9 +60,10 @@ class Trainer:
             for step in range(1, self.config.MAX_STEPS_PER_EPISODE + 1):
                 if total_steps >= self.config.TOTAL_STEPS:
                     break
+
                 total_steps += 1
 
-                # Choisir un skill
+                # ===== Skill selection =====
                 if skill_steps_remaining <= 0:
                     skill_idx = self.agent.select_action(state, epsilon)
                     current_skill = self.skills[skill_idx]
@@ -70,16 +77,16 @@ class Trainer:
                 done = terminated or truncated
                 next_state = next_obs_dict["observation"]
 
-                # Ajout dans le replay buffer et apprentissage
+                # ===== Replay + train =====
                 self.agent.replay_buffer.push(state, skill_idx, reward, next_state, done)
                 self.agent.train_step(self.config.BATCH_SIZE)
 
                 state = next_state
                 episode_reward += reward
 
-                # ======== Capture frames pour vidéo ========
-                if total_steps % 10000 == 0:  # tous les 10k steps
-                    frame = self.env.render()  # plus de mode="rgb_array"
+                # ===== Capture frames =====
+                if total_steps % 10000 == 0:
+                    frame = self.env.render()
                     frames.append(frame)
 
                 if done:
@@ -90,25 +97,27 @@ class Trainer:
             if episode % self.config.TARGET_UPDATE == 0:
                 self.agent.update_target()
 
-            # Logs TensorBoard
-            self.writer.add_scalar("Reward/episode", episode_reward, total_steps)  # steps totaux en x
+            # ===== TensorBoard logs =====
+            self.writer.add_scalar("Reward/episode", episode_reward, total_steps)
             self.writer.add_scalar("Epsilon", epsilon, total_steps)
 
             print(
                 f"Episode {episode:4d} | "
                 f"Reward = {episode_reward:8.2f} | "
-                f"Epsilon = {epsilon:.3f} | Total Steps = {total_steps:6d}"
+                f"Epsilon = {epsilon:.3f} | "
+                f"Total Steps = {total_steps:6d}"
             )
 
-            # ======== Sauvegarde vidéo dans TensorBoard ========
+            # ===== Video logging =====
             if frames:
+                video_tensor = torch.tensor(np.array(frames)).permute(0, 3, 1, 2).unsqueeze(0)
                 self.writer.add_video(
                     "Agent/video",
-                    torch.tensor(np.array(frames)).permute(0, 3, 1, 2).unsqueeze(0),
+                    video_tensor,
                     global_step=total_steps,
                     fps=15
                 )
-                frames = []  # reset frames
+                frames = []
 
             if total_steps >= self.config.TOTAL_STEPS:
                 break
