@@ -100,6 +100,10 @@ class Trainer:
             # ===== TensorBoard logs =====
             self.writer.add_scalar("Reward/episode", episode_reward, total_steps)
             self.writer.add_scalar("Epsilon", epsilon, total_steps)
+            self.writer.add_scalar("Reward/step", reward, total_steps)
+            
+
+            
 
             print(
                 f"Episode {episode:4d} | "
