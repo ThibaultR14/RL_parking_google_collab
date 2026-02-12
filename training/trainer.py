@@ -39,15 +39,18 @@ class Trainer:
         )
 
         os.makedirs(self.run_dir, exist_ok=True)
-
         print(f"\nLogs will be saved in:\n{self.run_dir}\n")
 
         self.writer = SummaryWriter(self.run_dir)
 
+        # Paramètres vidéo
+        self.video_interval = 10000  # tous les 10k steps
+        self.frames = []
+        self.capture_video = False
+
     def train(self):
         epsilon = self.config.EPS_START
         total_steps = 0
-        frames = []
 
         for episode in range(1, self.config.MAX_EPISODES + 1):
             obs_dict, _ = self.env.reset()
@@ -84,10 +87,25 @@ class Trainer:
                 state = next_state
                 episode_reward += reward
 
-                # ===== Capture frames =====
-                if total_steps % 10000 == 0:
+                # ===== Gestion vidéo =====
+                if total_steps % self.video_interval == 0:
+                    self.capture_video = True  # démarrer la capture
+
+                if self.capture_video:
                     frame = self.env.render()
-                    frames.append(frame)
+                    self.frames.append(frame)
+
+                # Fin de la capture vidéo après la durée du step interval
+                if self.capture_video and len(self.frames) >= 200:  # 200 frames par vidéo, ajustable
+                    video_tensor = torch.tensor(np.array(self.frames)).permute(0, 3, 1, 2).unsqueeze(0)
+                    self.writer.add_video(
+                        "Agent/video",
+                        video_tensor,
+                        global_step=total_steps,
+                        fps=15
+                    )
+                    self.frames = []
+                    self.capture_video = False
 
                 if done:
                     break
@@ -101,9 +119,6 @@ class Trainer:
             self.writer.add_scalar("Reward/episode", episode_reward, total_steps)
             self.writer.add_scalar("Epsilon", epsilon, total_steps)
             self.writer.add_scalar("Reward/step", reward, total_steps)
-            
-
-            
 
             print(
                 f"Episode {episode:4d} | "
@@ -111,17 +126,6 @@ class Trainer:
                 f"Epsilon = {epsilon:.3f} | "
                 f"Total Steps = {total_steps:6d}"
             )
-
-            # ===== Video logging =====
-            if frames:
-                video_tensor = torch.tensor(np.array(frames)).permute(0, 3, 1, 2).unsqueeze(0)
-                self.writer.add_video(
-                    "Agent/video",
-                    video_tensor,
-                    global_step=total_steps,
-                    fps=15
-                )
-                frames = []
 
             if total_steps >= self.config.TOTAL_STEPS:
                 break
