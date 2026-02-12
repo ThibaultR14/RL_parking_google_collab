@@ -1,7 +1,7 @@
 class Config:
     ENV_ID = "parking-v0"
 
-    TOTAL_STEPS = 200_000
+    TOTAL_STEPS = 100_000
     MAX_EPISODES = 10000
     MAX_STEPS_PER_EPISODE = 250
 
