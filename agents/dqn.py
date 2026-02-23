@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from .networks import DQNNetwork
 from .replay_buffer import ReplayBuffer
 
+print("LOADING DQN FROM:", __file__)
+
 class DQNAgent:
     def __init__(self, obs_dim, n_actions, config, device):
         self.device = device
