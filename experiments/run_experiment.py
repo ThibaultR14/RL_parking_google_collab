@@ -1,6 +1,10 @@
 import sys
 import argparse
 import highway_env
+import os
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root)
 
 # ====== Ajouter le dossier racine au path ======
 PROJECT_PATH = "/content/RL_parking_google_collab"  # adapte selon ton environnement
