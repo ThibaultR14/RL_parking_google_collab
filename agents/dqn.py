@@ -46,6 +46,10 @@ class DQNAgent:
         self.optimizer.step()
 
         return loss.item()
+    
+
+    def store_transition(self, state, action, reward, next_state, done):
+        self.replay_buffer.push(state, action, reward, next_state, done)
 
     def update_target(self):
         self.target_net.load_state_dict(self.policy_net.state_dict())
