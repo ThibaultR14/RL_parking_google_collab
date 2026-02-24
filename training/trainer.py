@@ -40,11 +40,10 @@ class Trainer:
         else:
             raise ValueError("Algo must be 'dqn' or 'td3'")
 
-       # ===== Logging =====
+        # ===== Logging =====
         timestamp = time.strftime("%Y%m%d_%H%M%S")
 
         base_dir = "/content/drive/MyDrive/RL_parking/runs"
-
         self.run_dir = os.path.join(
             base_dir,
             self.algo.upper(),
@@ -53,57 +52,96 @@ class Trainer:
         )
 
         os.makedirs(self.run_dir, exist_ok=True)
-
         print("Saving runs to:", self.run_dir)
 
         self.writer = SummaryWriter(self.run_dir)
 
     # ================= TRAIN LOOP =================
     def train(self):
+
         epsilon = self.config.EPS_START if self.algo == "dqn" else None
         total_steps = 0
         frames = []
 
         for episode in range(1, self.config.MAX_EPISODES + 1):
+
             obs_dict, _ = self.env.reset()
             state = obs_dict["observation"]
             episode_reward = 0
 
+            # ===== Skill variables (DQN only) =====
             current_skill = None
             skill_steps_remaining = 0
+            skill_start_state = None
+            skill_total_reward = 0
+            skill_duration = 0
+            skill_idx = None
 
             for step in range(self.config.MAX_STEPS_PER_EPISODE):
+
                 if total_steps >= self.config.TOTAL_STEPS:
                     break
+
                 total_steps += 1
 
-                # ===== Action selection =====
+                # ===== ACTION SELECTION =====
                 if self.algo == "dqn":
+
+                    # 🔥 Start new skill if needed
                     if skill_steps_remaining <= 0:
+
                         skill_idx = self.agent.select_action(state, epsilon)
                         current_skill = self.skills[skill_idx]
                         current_skill.reset()
+
                         skill_steps_remaining = current_skill.length
+
+                        # Initialize SMDP rollout
+                        skill_start_state = state
+                        skill_total_reward = 0
+                        skill_duration = 0
+
                     action = current_skill.step()
                     skill_steps_remaining -= 1
 
                 elif self.algo == "td3":
                     action = self.agent.select_action(state)
 
-                # ===== Environment step =====
+                # ===== ENV STEP =====
                 next_obs_dict, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
                 next_state = next_obs_dict["observation"]
 
-                # ===== Store transition =====
+                # ===== STORE TRANSITION =====
                 if self.algo == "dqn":
-                    self.agent.store_transition(state, skill_idx, reward, next_state, done)
-                elif self.algo == "td3":
-                    self.agent.store_transition(state, action, reward, next_state, done)
 
-                # ===== Train step =====
+                    skill_total_reward += reward
+                    skill_duration += 1
+
+                    # 🔥 Only store when skill ends (SMDP)
+                    if skill_steps_remaining == 0 or done:
+                        self.agent.store_transition(
+                            skill_start_state,
+                            skill_idx,
+                            skill_total_reward,
+                            next_state,
+                            done,
+                            skill_duration
+                        )
+
+                elif self.algo == "td3":
+                    self.agent.store_transition(
+                        state,
+                        action,
+                        reward,
+                        next_state,
+                        done
+                    )
+
+                # ===== TRAIN STEP =====
                 if self.algo == "dqn":
                     self.agent.train_step(self.config.BATCH_SIZE)
+
                 elif self.algo == "td3":
                     self.agent.train_step()
 
@@ -118,14 +156,16 @@ class Trainer:
                 if done:
                     break
 
-            # ===== Epsilon decay (DQN only) =====
+            # ===== DQN updates =====
             if self.algo == "dqn":
                 epsilon = max(self.config.EPS_END, epsilon * self.config.EPS_DECAY)
+
                 if episode % self.config.TARGET_UPDATE == 0:
                     self.agent.update_target()
 
             # ===== Logging =====
             self.writer.add_scalar("Reward/episode", episode_reward, total_steps)
+
             if self.algo == "dqn":
                 self.writer.add_scalar("Epsilon", epsilon, total_steps)
 
