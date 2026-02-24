@@ -40,15 +40,22 @@ class Trainer:
         else:
             raise ValueError("Algo must be 'dqn' or 'td3'")
 
-        # ===== Logging =====
+       # ===== Logging =====
         timestamp = time.strftime("%Y%m%d_%H%M%S")
+
+        base_dir = "/content/drive/MyDrive/RL_parking/runs"
+
         self.run_dir = os.path.join(
-            "runs",
+            base_dir,
             self.algo.upper(),
             skill_set_name if skill_set_name else "no_skills",
             timestamp
         )
+
         os.makedirs(self.run_dir, exist_ok=True)
+
+        print("Saving runs to:", self.run_dir)
+
         self.writer = SummaryWriter(self.run_dir)
 
     # ================= TRAIN LOOP =================
