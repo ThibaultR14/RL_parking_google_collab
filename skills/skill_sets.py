@@ -49,6 +49,8 @@ def diayn_parking_5_skills():
         skill_4(20),  # skill_id 4
     ]
 
+from .diayn_6_skills import skill_0, skill_1, skill_2, skill_3, skill_4
+
 def diayn_parking_6_skills():
     """
     Renvoie la liste des 6 skills pour parking-v0 basés sur le CSV.
