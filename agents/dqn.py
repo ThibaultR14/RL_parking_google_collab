@@ -32,14 +32,19 @@ class DQNAgent:
         if len(self.replay_buffer) < batch_size:
             return None
 
-        states, actions, rewards, next_states, dones = \
+        # 🔹 On récupère aussi durations
+        states, actions, rewards, next_states, dones, durations = \
             self.replay_buffer.sample(batch_size)
 
+        # ⚡ DQN standard : calcul Q(s,a)
         q_values = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze()
 
         with torch.no_grad():
             max_next_q = self.target_net(next_states).max(1)[0]
-            target_q = rewards + self.gamma * max_next_q * (1 - dones)
+
+            # 🔹 SMDP : appliquer gamma^duration
+            gamma_pow = self.gamma ** durations
+            target_q = rewards + gamma_pow * max_next_q * (1 - dones)
 
         loss = F.mse_loss(q_values, target_q)
 
@@ -48,7 +53,6 @@ class DQNAgent:
         self.optimizer.step()
 
         return loss.item()
-    
 
     def store_transition(self, state, action, reward, next_state, done, duration):
         self.replay_buffer.push(state, action, reward, next_state, done, duration)
